@@ -54,7 +54,7 @@ func (p *intervalProcessor) Process() {
 		process(ts)
 		select {
 		case <-p.stopChan:
-			break
+			return
 		case <-time.After(time.Duration(p.interval) * time.Second):
 			continue
 		}

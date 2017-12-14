@@ -38,6 +38,7 @@ func main() {
 		os.Exit(0)
 	}
 
+	start:
 	stopChan := make(chan bool)
 	doneChan := make(chan bool)
 	errChan := make(chan error, 10)
@@ -49,20 +50,31 @@ func main() {
 	default:
 		processor = template.IntervalProcessor(templateConfig, stopChan, doneChan, errChan, config.Interval)
 	}
-
 	go processor.Process()
 
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 	for {
 		select {
 		case err := <-errChan:
 			log.Error(err.Error())
 		case s := <-signalChan:
-			log.Info(fmt.Sprintf("Captured %v. Exiting...", s))
-			close(doneChan)
-		case <-doneChan:
-			os.Exit(0)
+			switch s {
+			case syscall.SIGUSR1:
+				log.Info("Received %v. Reloading templates", s)
+				close(stopChan)
+				goto start
+			case syscall.SIGINT, syscall.SIGTERM:
+				log.Info(fmt.Sprintf("Captured %v. Exiting...", s))
+				close(doneChan)
+				os.Exit(0)
+			default:
+				log.Info("Captured %v. Continue...")
+			}
+		/*case <-doneChan:
+			log.Info("Done...")
+			os.Exit(0)*/
 		}
 	}
+	log.Info("End...")
 }
